@@ -3,6 +3,7 @@
   "short_name": "BREG",
   "description": "Offline-first financial operating app for informal workers.",
   "start_url": ".",
+  "scope": ".",
   "display": "standalone",
   "theme_color": "#0F172A",
   "background_color": "#050817",

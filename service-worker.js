@@ -1,11 +1,11 @@
 const CACHE_NAME = 'breg-personal-shell-v1';
 const APP_SHELL = [
-  '/index.html',
-  '/styles.css',
-  '/app.js',
-  '/manifest.json',
-  '/icons/icon-192.svg',
-  '/icons/icon-512.svg'
+  'index.html',
+  'styles.css',
+  'app.js',
+  'manifest.json',
+  'icons/icon-192.svg',
+  'icons/icon-512.svg'
 ];
 const API_BASE = 'https://ziva-core-backend-production-fb94.up.railway.app';
 
