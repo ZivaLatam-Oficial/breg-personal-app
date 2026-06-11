@@ -1,14 +1,20 @@
 const API_BASE = 'https://ziva-core-backend-production-fb94.up.railway.app';
+
 const STORAGE_KEYS = {
   pendingLogs: 'breg_pending_logs',
   cachedDashboard: 'breg_cached_dashboard',
   cachedHistory: 'breg_cached_history',
   cachedVault: 'breg_cached_vault'
 };
+
+// 🔴 ZID temporal (luego será login real)
+const ZID = localStorage.getItem('zid') || 'test-zid-001';
+
 const MATERIAL_OPTIONS = [
-  'Aluminum', 'Copper', 'Bronze', 'Scrap',
-  'PET', 'HDPE', 'Clothes', 'Shoes', 'Tech', 'Hardware'
+  'Aluminum','Copper','Bronze','Scrap',
+  'PET','HDPE','Clothes','Shoes','Tech','Hardware'
 ];
+
 const MILESTONES = [
   { label: 'ZivaPay MVP', target: 250 },
   { label: 'ZivaPay Beta', target: 750 },
@@ -21,6 +27,7 @@ let pendingLogs = [];
 let cachedDashboard = null;
 let cachedHistory = null;
 let cachedVault = null;
+
 let isSyncing = false;
 let activeView = 'dashboard';
 
@@ -35,9 +42,7 @@ function init() {
   updateStatus();
   registerEvents();
   loadAllData();
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('service-worker.js').catch(() => {});
-  }
+
   setInterval(syncPendingLogs, 30000);
 }
 
@@ -53,124 +58,130 @@ function saveState(key, value) {
 }
 
 function registerEvents() {
-  navButtons.forEach(button => button.addEventListener('click', onNavClick));
+  navButtons.forEach(btn => btn.addEventListener('click', onNavClick));
+
   window.addEventListener('online', () => {
     updateStatus();
-    showToast('Conectado. Sincronizando entradas...');
+    showToast('Conectado. Sincronizando...');
     syncPendingLogs();
   });
-  window.addEventListener('offline', () => updateStatus());
+
+  window.addEventListener('offline', updateStatus);
 }
 
-function onNavClick(event) {
-  const view = event.currentTarget.dataset.view;
-  activeView = view;
-  navButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.view === view));
+function onNavClick(e) {
+  activeView = e.currentTarget.dataset.view;
+  navButtons.forEach(b => b.classList.toggle('active', b.dataset.view === activeView));
   renderView();
 }
 
 function updateStatus() {
   const offline = !navigator.onLine;
   statusButton.textContent = offline ? 'Offline' : 'Online';
-  statusButton.style.background = offline ? 'rgba(244,63,94,0.16)' : 'rgba(34,197,94,0.16)';
-  statusButton.style.color = offline ? '#fecaca' : '#dcfce7';
 }
 
 async function loadAllData() {
-  await Promise.all([fetchDashboardData(), fetchHistoryData(), fetchVaultData()]);
+  await Promise.all([
+    fetchDashboardData(),
+    fetchHistoryData(),
+    fetchVaultData()
+  ]);
   renderView();
   syncPendingLogs();
 }
 
+async function fetchApi(path, options = {}) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options
+  });
+
+  if (!res.ok) throw new Error('API error');
+  return res.json();
+}
+
+// 🔥 SYNC REAL
+async function syncPendingLogs() {
+  if (!navigator.onLine || isSyncing || pendingLogs.length === 0) return;
+
+  isSyncing = true;
+  const updated = [];
+
+  for (let log of pendingLogs) {
+    try {
+      const payload = {
+        zid: ZID,
+        materials: log.materials,
+        kilos: log.kilos,
+        price: log.price_per_kilo,
+        total: log.total,
+        timestamp: Date.now()
+      };
+
+      const res = await fetchApi('/breg/log', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+
+      if (res.success) {
+        showToast('✔ Sincronizado');
+        continue;
+      }
+
+      throw new Error();
+
+    } catch (err) {
+      log.retries = (log.retries || 0) + 1;
+      log.status = log.retries >= 3 ? 'failed' : 'pending';
+      updated.push(log);
+    }
+  }
+
+  pendingLogs = updated;
+  saveState(STORAGE_KEYS.pendingLogs, pendingLogs);
+
+  isSyncing = false;
+
+  await Promise.all([
+    fetchDashboardData(),
+    fetchHistoryData(),
+    fetchVaultData()
+  ]);
+
+  renderView();
+}
+
+function addPendingLog(entry) {
+  const log = {
+    ...entry,
+    zid: ZID,
+    status: 'pending',
+    retries: 0
+  };
+
+  pendingLogs.unshift(log);
+  saveState(STORAGE_KEYS.pendingLogs, pendingLogs);
+}
+
 async function fetchDashboardData() {
   try {
-    const result = await fetchApi('/breg/dashboard');
-    cachedDashboard = result;
+    cachedDashboard = await fetchApi('/breg/dashboard');
     saveState(STORAGE_KEYS.cachedDashboard, cachedDashboard);
-    return cachedDashboard;
-  } catch (error) {
-    return cachedDashboard;
-  }
+  } catch {}
 }
 
 async function fetchHistoryData() {
   try {
-    const result = await fetchApi('/breg/history');
-    cachedHistory = result;
+    cachedHistory = await fetchApi('/breg/history');
     saveState(STORAGE_KEYS.cachedHistory, cachedHistory);
-    return cachedHistory;
-  } catch (error) {
-    return cachedHistory;
-  }
+  } catch {}
 }
 
 async function fetchVaultData() {
   try {
-    const result = await fetchApi('/breg/vault');
-    cachedVault = result;
+    cachedVault = await fetchApi('/breg/vault');
     saveState(STORAGE_KEYS.cachedVault, cachedVault);
-    return cachedVault;
-  } catch (error) {
-    return cachedVault;
-  }
-}
-
-async function fetchApi(path, options = {}) {
-  const response = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options
-  });
-  if (!response.ok) {
-    throw new Error('API error');
-  }
-  return response.json();
-}
-
-async function syncPendingLogs() {
-  if (!navigator.onLine || isSyncing || pendingLogs.length === 0) {
-    return;
-  }
-  isSyncing = true;
-  let failed = false;
-  for (let i = 0; i < pendingLogs.length; i += 1) {
-    const entry = pendingLogs[i];
-    let attempt = 0;
-    let success = false;
-    while (attempt < 4 && !success) {
-      try {
-        await fetchApi('/breg/log', {
-          method: 'POST',
-          body: JSON.stringify(entry)
-        });
-        pendingLogs.splice(i, 1);
-        i -= 1;
-        saveState(STORAGE_KEYS.pendingLogs, pendingLogs);
-        success = true;
-        showToast('Entrada sincronizada con éxito');
-      } catch (error) {
-        attempt += 1;
-        const delay = 500 * Math.pow(2, attempt);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
-    }
-    if (!success) {
-      failed = true;
-    }
-  }
-  isSyncing = false;
-  if (!failed) {
-    await Promise.all([fetchDashboardData(), fetchHistoryData(), fetchVaultData()]);
-    renderView();
-  }
-}
-
-function addPendingLog(entry) {
-  pendingLogs.unshift(entry);
-  saveState(STORAGE_KEYS.pendingLogs, pendingLogs);
-}
-
-function buildCard(title, html) {
-  return `<section class="card"><h2>${title}</h2>${html}</section>`;
+  } catch {}
 }
 
 function renderView() {
@@ -183,34 +194,149 @@ function renderView() {
   }
 }
 
+// ================= REGISTER =================
+
+function renderRegister() {
+  pageTitle.textContent = 'Registrar';
+
+  mainContent.innerHTML = `
+    <section class="card form-card">
+      <h2>Nuevo registro</h2>
+
+      <div id="material-select" class="multi-select"></div>
+
+      <input id="kilos" placeholder="Kilos"/>
+      <input id="price" placeholder="Precio por kilo"/>
+
+      <div id="calc">Total: $0</div>
+
+      <button id="submit-log" class="button-primary">Guardar</button>
+    </section>
+  `;
+
+  const select = document.getElementById('material-select');
+
+  MATERIAL_OPTIONS.forEach(m => {
+    const btn = document.createElement('button');
+    btn.className = 'option-chip';
+    btn.textContent = m;
+    btn.onclick = () => btn.classList.toggle('active');
+    select.appendChild(btn);
+  });
+
+  const kilos = document.getElementById('kilos');
+  const price = document.getElementById('price');
+  const calc = document.getElementById('calc');
+
+  const updateCalc = () => {
+    const total = (kilos.value || 0) * (price.value || 0);
+    calc.textContent = `Total: $${total}`;
+  };
+
+  kilos.oninput = updateCalc;
+  price.oninput = updateCalc;
+
+  document.getElementById('submit-log').onclick = () =>
+    onSubmitLog(kilos, price);
+}
+
+function onSubmitLog(kilosInput, priceInput) {
+  const selected = Array.from(document.querySelectorAll('.option-chip.active'))
+    .map(b => b.textContent);
+
+  if (!selected.length) return showToast('Selecciona material');
+
+  const kilos = parseFloat(kilosInput.value);
+  const price = parseFloat(priceInput.value);
+
+  if (!kilos || !price) return showToast('Datos inválidos');
+
+  const total = kilos * price;
+
+  addPendingLog({
+    id: Date.now(),
+    date: new Date().toISOString(),
+    materials: selected,
+    kilos,
+    price_per_kilo: price,
+    total
+  });
+
+  showToast('Guardado local');
+  syncPendingLogs();
+}
+
+// ================= HISTORY =================
+
+function renderHistory() {
+  pageTitle.textContent = 'Historial';
+
+  const all = [...pendingLogs, ...(cachedHistory?.logs || [])];
+
+  mainContent.innerHTML = all.map(log => `
+    <div class="card">
+      <strong>${log.materials.join(', ')}</strong>
+      <p>$${log.total}</p>
+      <span>${log.status || 'sync'}</span>
+    </div>
+  `).join('');
+}
+
+// ================= DASHBOARD =================
+
 function renderDashboard() {
   pageTitle.textContent = 'Dashboard';
+
   const data = cachedDashboard || {};
-  const dailyIncome = data.dailyIncome || 0;
-  const vaultSaved = data.vaultSavings || 0;
-  const rank = data.zivaRank?.badge || 'Explorador Financiero';
-  const progress = Math.min(100, data.rankProgress || 0);
-  const nudges = data.nudges || ['Registra tu primera ruta para ganar impulso.'];
-  const cards = [];
-  cards.push(buildCard('Ingreso diario', `<p><strong>$${dailyIncome.toFixed(2)}</strong></p>`));
-  cards.push(buildCard('Ahorro automático', `<p><strong>$${vaultSaved.toFixed(2)}</strong> · 15% del ingreso</p>`));
-  cards.push(buildCard('ZivaRank', `<span class="badge">${rank}</span><div class="progress-track"><div class="progress-fill" style="width:${progress}%"></div></div>`));
-  const chartBars = renderChartBars(data.incomeTrend || [20,40,60,50,80]);
-  const nudgeText = nudges[0];
+
   mainContent.innerHTML = `
-    ${buildCard('Resumen rápido', `
-      <div class="stat-row">
-        <div class="stat-card"><strong>$${dailyIncome.toFixed(0)}</strong><span>Ingresos</span></div>
-        <div class="stat-card"><strong>$${vaultSaved.toFixed(0)}</strong><span>Protegido</span></div>
-      </div>
-    `)}
-    ${buildCard('Progreso ZivaRank', `
-      <div class="badge">${rank}</div>
-      <div class="progress-track"><div class="progress-fill" style="width:${progress}%"></div></div>
-      <p class="message">Sigue registrando para asegurar tu siguiente avance.</p>
-    `)}
-    ${buildCard('Actividad reciente', chartBars)}
-    ${buildCard('Nudges', `<div class="nudge-card"><p>${nudgeText}</p></div>`)}
+    <div class="card">
+      <h2>Ingreso</h2>
+      <p>$${data.dailyIncome || 0}</p>
+    </div>
+
+    <div class="card">
+      <h2>Vault</h2>
+      <p>$${data.vaultSavings || 0}</p>
+    </div>
+  `;
+}
+
+// ================= VAULT =================
+
+function renderVault() {
+  pageTitle.textContent = 'Vault';
+
+  const vault = cachedVault || {};
+
+  mainContent.innerHTML = `
+    <div class="card">
+      <h2>Total</h2>
+      <p>$${vault.totalSaved || 0}</p>
+    </div>
+  `;
+}
+
+// ================= PROFILE =================
+
+function renderProfile() {
+  pageTitle.textContent = 'Perfil';
+
+  mainContent.innerHTML = `
+    <div class="card">
+      <h2>ZID</h2>
+      <p>${ZID}</p>
+    </div>
+  `;
+}
+
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add('visible');
+  setTimeout(() => toast.classList.remove('visible'), 2000);
+}
+
+init();    ${buildCard('Nudges', `<div class="nudge-card"><p>${nudgeText}</p></div>`)}
     <section class="card"><h2>Estado local</h2><p class="message">${navigator.onLine ? 'Conectado. Datos actualizados.' : 'Offline. Las entradas se guardan localmente y se sincronizarán al volver en línea.'}</p></section>
   `;
 }
