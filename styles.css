@@ -1,0 +1,50 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #050817;
+  color: #eef2ff;
+}
+*{
+  box-sizing:border-box;
+}
+body,html{margin:0;padding:0;background:#050817;color:#eef2ff;min-height:100vh;}
+button,input,select,textarea{font:inherit;}
+button{cursor:pointer;border:none;background:none;color:inherit;}
+.app-shell{max-width:420px;margin:0 auto;padding-bottom:90px;}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;}
+.eyebrow{margin:0;font-size:0.8rem;text-transform:uppercase;letter-spacing:0.24em;color:#9ca3af;}
+h1{margin:4px 0 0;font-size:1.4rem;}
+.status-chip{padding:10px 14px;border-radius:999px;background:rgba(99,102,241,0.15);color:#c7d2fe;}
+.content{padding:0 20px 20px;}
+.card{background:linear-gradient(180deg, rgba(15,23,42,0.96), rgba(13,20,38,0.96));border:1px solid rgba(148,163,184,0.12);border-radius:24px;padding:18px;margin-bottom:16px;box-shadow:0 18px 40px rgba(15,23,42,0.25);}
+.card h2{margin:0 0 10px;font-size:1rem;color:#c7d2fe;}
+.card p{margin:0;color:#cbd5e1;line-height:1.5;}
+.stat-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
+.stat-card{padding:16px;border-radius:18px;background:#111827;border:1px solid rgba(148,163,184,0.08);}
+.stat-card strong{display:block;font-size:1.4rem;color:#eef2ff;margin-bottom:6px;}
+.stat-card span{font-size:0.78rem;color:#94a3b8;}
+.badge{display:inline-flex;align-items:center;padding:8px 12px;border-radius:999px;background:rgba(99,102,241,0.16);color:#e0e7ff;font-weight:600;margin-top:10px;}
+.nudge-card{padding:18px;border-radius:20px;background:linear-gradient(180deg,rgba(99,102,241,0.12),rgba(30,41,59,0.95));border:1px solid rgba(99,102,241,0.18);}
+.progress-track{height:10px;width:100%;background:#111827;border-radius:999px;margin-top:12px;overflow:hidden;}
+.progress-fill{height:100%;background:#818cf8;border-radius:999px;transition:width .3s ease;}
+.chart-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-top:14px;}
+.chart-bar{border-radius:12px;background:linear-gradient(180deg,#8b5cf6,#6366f1);display:flex;align-items:flex-end;justify-content:center;padding:6px 0;}
+.chart-bar span{font-size:0.72rem;color:#eef2ff;}
+.form-card input,.form-card select{width:100%;padding:14px 16px;margin-top:10px;border-radius:16px;background:#0f172a;border:1px solid rgba(148,163,184,0.12);color:#e2e8f0;}
+.form-card label{display:block;margin-top:14px;font-size:0.95rem;color:#cbd5e1;}
+.multi-select{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px;}
+.option-chip{padding:12px 14px;border-radius:16px;border:1px solid rgba(148,163,184,0.18);background:#111827;color:#e2e8f0;text-align:center;}
+.option-chip.active{background:rgba(99,102,241,0.18);border-color:#818cf8;color:#eef2ff;}
+.button-primary{width:100%;margin-top:18px;padding:16px;border-radius:18px;background:#6366f1;color:#fff;font-weight:700;letter-spacing:.01em;box-shadow:0 16px 30px rgba(99,102,241,0.18);}
+.message{margin-top:10px;font-size:0.92rem;color:#94a3b8;}
+.list-item{padding:16px;border-radius:18px;background:#111827;border:1px solid rgba(148,163,184,0.08);margin-bottom:12px;}
+.list-item strong{display:block;margin-bottom:6px;font-size:1rem;color:#eef2ff;}
+.list-item small{color:#94a3b8;}
+.badge-pill{display:inline-block;padding:6px 10px;border-radius:999px;background:#1d4ed8;color:#dbeafe;font-size:0.8rem;margin-top:8px;}
+.bottom-nav{position:fixed;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(5,1fr);gap:2px;background:#060b1c;padding:10px;box-shadow:0 -12px 30px rgba(0,0,0,0.35);}
+.nav-item{padding:12px 6px;border-radius:16px;color:#94a3b8;font-size:0.82rem;}
+.nav-item.active{background:rgba(99,102,241,0.16);color:#eef2ff;}
+.toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);padding:14px 18px;border-radius:18px;background:rgba(15,23,42,0.95);color:#f8fafc;box-shadow:0 22px 45px rgba(15,23,42,0.35);transition:opacity .25s ease,visibility .25s ease;opacity:0;visibility:hidden;z-index:20;}
+.toast.visible{opacity:1;visibility:visible;}
+.hidden{display:none;}
+@media (max-width:420px){.topbar{padding:18px 16px;}.content{padding:0 16px 20px;}}
