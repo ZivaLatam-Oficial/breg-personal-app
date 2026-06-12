@@ -113,7 +113,7 @@ async function syncPendingLogs() {
         zid: ZID,
         materials: log.materials,
         kilos: log.kilos,
-        price: log.price_per_kilo,
+        price: log.price,
         total: log.total,
         timestamp: Date.now()
       };
