@@ -2,139 +2,174 @@ const API_BASE = 'https://ziva-core-backend-production-fb94.up.railway.app';
 
 const STORAGE_KEYS = {
   pendingLogs: 'breg_pending_logs',
-  zid: 'zid'
+  cachedDashboard: 'breg_cached_dashboard',
+  cachedHistory: 'breg_cached_history',
+  cachedVault: 'breg_cached_vault'
 };
 
-// ================= ZID =================
-
-async function initZID() {
-  let zid = localStorage.getItem(STORAGE_KEYS.zid);
-
-  if (!zid) {
-    try {
-      const res = await fetch(`${API_BASE}/identity`, { method: 'POST' });
-      const data = await res.json();
-
-      zid = data.zid;
-      localStorage.setItem(STORAGE_KEYS.zid, zid);
-
-      console.log('[ZID] Created:', zid);
-    } catch (err) {
-      console.error('[ZID] Error creating identity');
-      zid = 'offline-zid-' + Date.now();
-    }
-  }
-
-  return zid;
-}
-
-let ZID = null;
-
-// ================= STATE =================
+// ⚠️ TEMPORAL (luego reemplazamos con ZID real)
+const ZID = localStorage.getItem('zid') || 'test-zid-001';
 
 let pendingLogs = [];
+let cachedDashboard = null;
+let cachedHistory = null;
+let cachedVault = null;
+
 let isSyncing = false;
+let activeView = 'dashboard';
 
 // ================= INIT =================
-
-async function init() {
-  ZID = await initZID();
-
-  pendingLogs = JSON.parse(localStorage.getItem(STORAGE_KEYS.pendingLogs) || '[]');
-
+function init() {
+  restoreState();
   updateStatus();
   registerEvents();
+  loadAllData();
 
-  setInterval(syncPendingLogs, 20000);
-
-  renderDashboard();
+  setInterval(syncPendingLogs, 30000);
 }
 
-// ================= EVENTS =================
-
-function registerEvents() {
-  window.addEventListener('online', syncPendingLogs);
-  window.addEventListener('offline', updateStatus);
+// ================= STATE =================
+function restoreState() {
+  pendingLogs = JSON.parse(localStorage.getItem(STORAGE_KEYS.pendingLogs) || '[]');
+  cachedDashboard = JSON.parse(localStorage.getItem(STORAGE_KEYS.cachedDashboard) || 'null');
+  cachedHistory = JSON.parse(localStorage.getItem(STORAGE_KEYS.cachedHistory) || 'null');
+  cachedVault = JSON.parse(localStorage.getItem(STORAGE_KEYS.cachedVault) || 'null');
 }
 
-// ================= STATUS =================
+function saveState(key, value) {
+  localStorage.setItem(key, JSON.stringify(value));
+}
 
-function updateStatus() {
-  const btn = document.getElementById('status-button');
-  btn.textContent = navigator.onLine ? 'Online' : 'Offline';
+// ================= NETWORK =================
+async function fetchApi(path, options = {}) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options
+  });
+
+  if (!res.ok) throw new Error('API error');
+  return res.json();
 }
 
 // ================= SYNC =================
-
 async function syncPendingLogs() {
   if (!navigator.onLine || isSyncing || pendingLogs.length === 0) return;
 
   isSyncing = true;
-
   const remaining = [];
 
   for (let log of pendingLogs) {
     try {
-      const res = await fetch(`${API_BASE}/breg/log`, {
+      const payload = {
+        zid: ZID,
+        materials: log.materials,
+        kilos: log.kilos,
+        price: log.price,
+        total: log.total,
+        zone: log.zone || null
+      };
+
+      const res = await fetchApi('/breg/log', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...log, zid: ZID })
+        body: JSON.stringify(payload)
       });
 
-      if (!res.ok) throw new Error();
+      if (!res.success) throw new Error();
 
     } catch {
+      log.retries = (log.retries || 0) + 1;
       remaining.push(log);
     }
   }
 
   pendingLogs = remaining;
-  localStorage.setItem(STORAGE_KEYS.pendingLogs, JSON.stringify(pendingLogs));
+  saveState(STORAGE_KEYS.pendingLogs, pendingLogs);
 
   isSyncing = false;
+
+  await loadAllData();
 }
 
-// ================= LOG =================
+// ================= DATA =================
+async function loadAllData() {
+  await Promise.all([
+    fetchDashboardData(),
+    fetchHistoryData(),
+    fetchVaultData()
+  ]);
 
-function addLog(log) {
-  pendingLogs.unshift(log);
-  localStorage.setItem(STORAGE_KEYS.pendingLogs, JSON.stringify(pendingLogs));
-  syncPendingLogs();
+  renderDashboard();
+}
+
+async function fetchDashboardData() {
+  try {
+    cachedDashboard = await fetchApi(`/breg/dashboard/${ZID}`);
+    saveState(STORAGE_KEYS.cachedDashboard, cachedDashboard);
+  } catch {}
+}
+
+async function fetchHistoryData() {
+  try {
+    cachedHistory = await fetchApi(`/breg/history/${ZID}`);
+    saveState(STORAGE_KEYS.cachedHistory, cachedHistory);
+  } catch {}
+}
+
+async function fetchVaultData() {
+  try {
+    cachedVault = await fetchApi(`/breg/vault/${ZID}`);
+    saveState(STORAGE_KEYS.cachedVault, cachedVault);
+  } catch {}
 }
 
 // ================= UI =================
-
 function renderDashboard() {
-  const main = document.getElementById('main-content');
+  const data = cachedDashboard || {};
 
-  main.innerHTML = `
+  document.getElementById('main-content').innerHTML = `
     <div class="card">
-      <h2>ZID</h2>
-      <p>${ZID}</p>
+      <h2>Ingreso diario</h2>
+      <p>$${data.dailyIncome || 0}</p>
     </div>
 
     <div class="card">
-      <button onclick="testLog()" class="button-primary">
-        Test Log
-      </button>
+      <h2>Ingreso mensual</h2>
+      <p>$${data.monthlyIncome || 0}</p>
+    </div>
+
+    <div class="card">
+      <h2>Vault</h2>
+      <p>$${data.vaultSavings || 0}</p>
     </div>
   `;
 }
 
-// ================= TEST =================
+// ================= REGISTER =================
+function addPendingLog(entry) {
+  const log = {
+    ...entry,
+    zid: ZID,
+    retries: 0
+  };
 
-function testLog() {
-  addLog({
-    materials: ['Aluminum'],
-    kilos: 1,
-    price: 1000,
-    total: 1000,
-    zone: 'Santiago'
+  pendingLogs.unshift(log);
+  saveState(STORAGE_KEYS.pendingLogs, pendingLogs);
+}
+
+// ================= EVENTS =================
+function registerEvents() {
+  window.addEventListener('online', () => {
+    updateStatus();
+    syncPendingLogs();
   });
 
-  alert('Log creado');
+  window.addEventListener('offline', updateStatus);
+}
+
+function updateStatus() {
+  const statusButton = document.getElementById('status-button');
+  statusButton.textContent = navigator.onLine ? 'Online' : 'Offline';
 }
 
 // ================= START =================
-
 init();
