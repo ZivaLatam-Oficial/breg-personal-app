@@ -1,12 +1,11 @@
-const CACHE_NAME = 'breg-shell-v2';
+const CACHE_NAME = 'breg-personal-v2';
+
 const APP_SHELL = [
   '/',
   '/index.html',
   '/styles.css',
   '/app.js',
-  '/manifest.json',
-  '/icons/icon-192.svg',
-  '/icons/icon-512.svg'
+  '/manifest.json'
 ];
 
 const API_BASE = 'https://ziva-core-backend-production-fb94.up.railway.app';
@@ -21,9 +20,7 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(
-        keys.map(key => key !== CACHE_NAME && caches.delete(key))
-      )
+      Promise.all(keys.map(key => key !== CACHE_NAME && caches.delete(key)))
     )
   );
   self.clients.claim();
@@ -32,30 +29,30 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // ⚡ API (network first)
-  if (event.request.method === 'GET' && url.href.startsWith(API_BASE)) {
-    event.respondWith(networkFirst(event.request));
+  // App local
+  if (url.origin === location.origin) {
+    event.respondWith(cacheFirst(event.request));
     return;
   }
 
-  // ⚡ APP SHELL (cache first)
-  if (url.origin === location.origin) {
-    event.respondWith(cacheFirst(event.request));
+  // API
+  if (url.href.startsWith(API_BASE)) {
+    event.respondWith(networkFirst(event.request));
   }
 });
 
-function cacheFirst(request) {
-  return caches.match(request).then(res => res || fetch(request));
+async function cacheFirst(req) {
+  const cached = await caches.match(req);
+  return cached || fetch(req);
 }
 
-function networkFirst(request) {
-  return fetch(request)
-    .then(res => {
-      if (res && res.status === 200) {
-        const clone = res.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
-      }
-      return res;
-    })
-    .catch(() => caches.match(request));
+async function networkFirst(req) {
+  try {
+    const res = await fetch(req);
+    const cache = await caches.open(CACHE_NAME);
+    cache.put(req, res.clone());
+    return res;
+  } catch {
+    return caches.match(req);
+  }
 }
