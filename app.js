@@ -4,24 +4,16 @@ const STORAGE_KEYS = {
   pendingLogs: 'breg_pending_logs',
   cachedDashboard: 'breg_cached_dashboard',
   cachedHistory: 'breg_cached_history',
-  cachedVault: 'breg_cached_vault'
+  cachedVault: 'breg_cached_vault',
+  zid: 'ziva_zid'
 };
 
-// 🔴 ZID temporal (luego será login real)
-const ZID = localStorage.getItem('zid') || 'test-zid-001';
-
-const MATERIAL_OPTIONS = [
-  'Aluminum','Copper','Bronze','Scrap',
-  'PET','HDPE','Clothes','Shoes','Tech','Hardware'
-];
-
-const MILESTONES = [
-  { label: 'ZivaPay MVP', target: 250 },
-  { label: 'ZivaPay Beta', target: 750 },
-  { label: 'Production Launch', target: 1500 },
-  { label: 'Legal Structure', target: 3000 },
-  { label: 'Capital Target', target: 5000 }
-];
+// ✅ ZID persistente (base real)
+let ZID = localStorage.getItem(STORAGE_KEYS.zid);
+if (!ZID) {
+  ZID = `zid-${Date.now()}`;
+  localStorage.setItem(STORAGE_KEYS.zid, ZID);
+}
 
 let pendingLogs = [];
 let cachedDashboard = null;
@@ -42,7 +34,6 @@ function init() {
   updateStatus();
   registerEvents();
   loadAllData();
-
   setInterval(syncPendingLogs, 30000);
 }
 
@@ -76,8 +67,7 @@ function onNavClick(e) {
 }
 
 function updateStatus() {
-  const offline = !navigator.onLine;
-  statusButton.textContent = offline ? 'Offline' : 'Online';
+  statusButton.textContent = navigator.onLine ? 'Online' : 'Offline';
 }
 
 async function loadAllData() {
@@ -100,12 +90,13 @@ async function fetchApi(path, options = {}) {
   return res.json();
 }
 
-// 🔥 SYNC REAL
+// ================= SYNC REAL =================
+
 async function syncPendingLogs() {
   if (!navigator.onLine || isSyncing || pendingLogs.length === 0) return;
 
   isSyncing = true;
-  const updated = [];
+  const remaining = [];
 
   for (let log of pendingLogs) {
     try {
@@ -123,21 +114,18 @@ async function syncPendingLogs() {
         body: JSON.stringify(payload)
       });
 
-      if (res.success) {
-        showToast('✔ Sincronizado');
-        continue;
-      }
+      if (!res.success) throw new Error();
 
-      throw new Error();
+      showToast('✔ Sincronizado');
 
     } catch (err) {
       log.retries = (log.retries || 0) + 1;
       log.status = log.retries >= 3 ? 'failed' : 'pending';
-      updated.push(log);
+      remaining.push(log);
     }
   }
 
-  pendingLogs = updated;
+  pendingLogs = remaining;
   saveState(STORAGE_KEYS.pendingLogs, pendingLogs);
 
   isSyncing = false;
@@ -151,15 +139,16 @@ async function syncPendingLogs() {
   renderView();
 }
 
+// ================= DATA =================
+
 function addPendingLog(entry) {
-  const log = {
+  pendingLogs.unshift({
     ...entry,
     zid: ZID,
     status: 'pending',
     retries: 0
-  };
+  });
 
-  pendingLogs.unshift(log);
   saveState(STORAGE_KEYS.pendingLogs, pendingLogs);
 }
 
@@ -184,13 +173,15 @@ async function fetchVaultData() {
   } catch {}
 }
 
+// ================= UI =================
+
 function renderView() {
   switch (activeView) {
-    case 'register': renderRegister(); break;
-    case 'history': renderHistory(); break;
-    case 'vault': renderVault(); break;
-    case 'profile': renderProfile(); break;
-    default: renderDashboard();
+    case 'register': return renderRegister();
+    case 'history': return renderHistory();
+    case 'vault': return renderVault();
+    case 'profile': return renderProfile();
+    default: return renderDashboard();
   }
 }
 
@@ -200,70 +191,55 @@ function renderRegister() {
   pageTitle.textContent = 'Registrar';
 
   mainContent.innerHTML = `
-    <section class="card form-card">
+    <div class="card">
       <h2>Nuevo registro</h2>
-
-      <div id="material-select" class="multi-select"></div>
-
-      <input id="kilos" placeholder="Kilos"/>
-      <input id="price" placeholder="Precio por kilo"/>
-
-      <div id="calc">Total: $0</div>
-
-      <button id="submit-log" class="button-primary">Guardar</button>
-    </section>
+      <input id="materials" placeholder="Materiales (coma)" />
+      <input id="kilos" placeholder="Kilos" />
+      <input id="price" placeholder="Precio" />
+      <button id="submit-log">Guardar</button>
+    </div>
   `;
 
-  const select = document.getElementById('material-select');
+  document.getElementById('submit-log').onclick = () => {
+    const materials = document.getElementById('materials').value.split(',');
+    const kilos = parseFloat(document.getElementById('kilos').value);
+    const price = parseFloat(document.getElementById('price').value);
 
-  MATERIAL_OPTIONS.forEach(m => {
-    const btn = document.createElement('button');
-    btn.className = 'option-chip';
-    btn.textContent = m;
-    btn.onclick = () => btn.classList.toggle('active');
-    select.appendChild(btn);
-  });
+    if (!materials.length || !kilos || !price) {
+      return showToast('Datos inválidos');
+    }
 
-  const kilos = document.getElementById('kilos');
-  const price = document.getElementById('price');
-  const calc = document.getElementById('calc');
+    addPendingLog({
+      id: Date.now(),
+      date: new Date().toISOString(),
+      materials,
+      kilos,
+      price,
+      total: kilos * price
+    });
 
-  const updateCalc = () => {
-    const total = (kilos.value || 0) * (price.value || 0);
-    calc.textContent = `Total: $${total}`;
+    showToast('Guardado local');
+    syncPendingLogs();
   };
-
-  kilos.oninput = updateCalc;
-  price.oninput = updateCalc;
-
-  document.getElementById('submit-log').onclick = () =>
-    onSubmitLog(kilos, price);
 }
 
-function onSubmitLog(kilosInput, priceInput) {
-  const selected = Array.from(document.querySelectorAll('.option-chip.active'))
-    .map(b => b.textContent);
+// ================= DASHBOARD =================
 
-  if (!selected.length) return showToast('Selecciona material');
+function renderDashboard() {
+  pageTitle.textContent = 'Dashboard';
 
-  const kilos = parseFloat(kilosInput.value);
-  const price = parseFloat(priceInput.value);
+  const data = cachedDashboard || {};
 
-  if (!kilos || !price) return showToast('Datos inválidos');
-
-  const total = kilos * price;
-
-  addPendingLog({
-    id: Date.now(),
-    date: new Date().toISOString(),
-    materials: selected,
-    kilos,
-    price_per_kilo: price,
-    total
-  });
-
-  showToast('Guardado local');
-  syncPendingLogs();
+  mainContent.innerHTML = `
+    <div class="card">
+      <h2>Ingreso</h2>
+      <p>$${data.dailyIncome || 0}</p>
+    </div>
+    <div class="card">
+      <h2>Vault</h2>
+      <p>$${data.vaultSavings || 0}</p>
+    </div>
+  `;
 }
 
 // ================= HISTORY =================
@@ -280,26 +256,6 @@ function renderHistory() {
       <span>${log.status || 'sync'}</span>
     </div>
   `).join('');
-}
-
-// ================= DASHBOARD =================
-
-function renderDashboard() {
-  pageTitle.textContent = 'Dashboard';
-
-  const data = cachedDashboard || {};
-
-  mainContent.innerHTML = `
-    <div class="card">
-      <h2>Ingreso</h2>
-      <p>$${data.dailyIncome || 0}</p>
-    </div>
-
-    <div class="card">
-      <h2>Vault</h2>
-      <p>$${data.vaultSavings || 0}</p>
-    </div>
-  `;
 }
 
 // ================= VAULT =================
@@ -330,151 +286,12 @@ function renderProfile() {
   `;
 }
 
+// ================= UTIL =================
+
 function showToast(msg) {
   toast.textContent = msg;
   toast.classList.add('visible');
   setTimeout(() => toast.classList.remove('visible'), 2000);
-}
-
-init();    ${buildCard('Nudges', `<div class="nudge-card"><p>${nudgeText}</p></div>`)}
-    <section class="card"><h2>Estado local</h2><p class="message">${navigator.onLine ? 'Conectado. Datos actualizados.' : 'Offline. Las entradas se guardan localmente y se sincronizarán al volver en línea.'}</p></section>
-  `;
-}
-
-function renderChartBars(values) {
-  const max = Math.max(...values, 1);
-  const bars = values.map(value => {
-    const height = Math.max(18, Math.round((value / max) * 120));
-    return `<div class="chart-bar" style="height:${height}px;"><span>${value}</span></div>`;
-  }).join('');
-  return `<div class="chart-grid">${bars}</div>`;
-}
-
-function renderRegister() {
-  pageTitle.textContent = 'Registrar';
-  const saved = cachedDashboard?.recentTotal || 0;
-  mainContent.innerHTML = `
-    <section class="card form-card">
-      <h2>Nuevo registro</h2>
-      <label>Material</label>
-      <div class="multi-select" id="material-select"></div>
-      <label for="kilos">Kilos</label>
-      <input id="kilos" type="number" min="0" step="0.1" placeholder="0.0" />
-      <label for="price">Precio por kilo</label>
-      <input id="price" type="number" min="0" step="0.1" placeholder="0.0" />
-      <div class="message" id="calculation">Total: $0.00 · Ahorro 15%: $0.00</div>
-      <button class="button-primary" id="submit-log">Guardar entrada</button>
-    </section>
-    <section class="card"><h2>Resumen</h2><p><strong>$${saved.toFixed(2)}</strong> registrado recientemente.</p></section>
-  `;
-  const selectContainer = document.getElementById('material-select');
-  MATERIAL_OPTIONS.forEach(material => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'option-chip';
-    button.textContent = material;
-    button.dataset.material = material;
-    button.addEventListener('click', () => button.classList.toggle('active'));
-    selectContainer.appendChild(button);
-  });
-  const kilosInput = document.getElementById('kilos');
-  const priceInput = document.getElementById('price');
-  const calculation = document.getElementById('calculation');
-  const updateCalc = () => {
-    const kilos = parseFloat(kilosInput.value) || 0;
-    const price = parseFloat(priceInput.value) || 0;
-    const total = kilos * price;
-    const vault = total * 0.15;
-    calculation.textContent = `Total: $${total.toFixed(2)} · Ahorro 15%: $${vault.toFixed(2)}`;
-  };
-  kilosInput.addEventListener('input', updateCalc);
-  priceInput.addEventListener('input', updateCalc);
-  document.getElementById('submit-log').addEventListener('click', () => onSubmitLog(kilosInput, priceInput));
-}
-
-function onSubmitLog(kilosInput, priceInput) {
-  const selected = Array.from(document.querySelectorAll('.option-chip.active')).map(btn => btn.dataset.material);
-  if (selected.length === 0) {
-    showToast('Selecciona al menos un material.');
-    return;
-  }
-  const kilos = parseFloat(kilosInput.value) || 0;
-  const price = parseFloat(priceInput.value) || 0;
-  if (kilos <= 0 || price <= 0) {
-    showToast('Ingresa kilos y precio válidos.');
-    return;
-  }
-  const total = kilos * price;
-  const vault = total * 0.15;
-  const entry = {
-    id: `local-${Date.now()}`,
-    date: new Date().toISOString(),
-    materials: selected,
-    kilos,
-    price_per_kilo: price,
-    total,
-    vault,
-    source: navigator.onLine ? 'online' : 'offline'
-  };
-  addPendingLog(entry);
-  showToast('Entrada registrada. Se sincronizará cuando estés en línea.');
-  renderDashboard();
-}
-
-function renderHistory() {
-  pageTitle.textContent = 'Historial';
-  const history = cachedHistory?.logs || [];
-  const pending = pendingLogs;
-  const allLogs = [...pending, ...history].slice(0, 30);
-  const html = allLogs.length === 0 ? '<p class="message">No hay registros todavía.</p>' : allLogs.map(item => {
-    const date = new Date(item.date).toLocaleDateString('es-PE', { day: 'numeric', month: 'short' });
-    return `<div class="list-item"><strong>${item.materials?.join(', ') || 'Material desconocido'}</strong><small>${date} · ${item.kilos || 0} kg · $${(item.total || 0).toFixed(2)}</small><span class="badge-pill">${item.source === 'offline' ? 'Pendiente' : 'Registrado'}</span></div>`;
-  }).join('');
-  mainContent.innerHTML = `<section class="card"><h2>Registros recientes</h2>${html}</section>`;
-}
-
-function renderVault() {
-  pageTitle.textContent = 'Vault';
-  const vault = cachedVault || { totalSaved: 0, progress: 0 };
-  const totalSaved = vault.totalSaved || 0;
-  const progress = Math.min(100, vault.progress || 0);
-  const milestone = MILESTONES.find(m => totalSaved < m.target) || MILESTONES[MILESTONES.length - 1];
-  mainContent.innerHTML = `
-    <section class="card">
-      <h2>Vault protegido</h2>
-      <p><strong>$${totalSaved.toFixed(2)}</strong></p>
-      <div class="progress-track"><div class="progress-fill" style="width:${progress}%"></div></div>
-      <p class="message">Meta activa: ${milestone.label} · ${milestone.target} USD</p>
-    </section>
-    <section class="card">
-      <h2>Ahorras cada día</h2>
-      <p>El 15% de cada entrada se guarda para fortalecer tu capital.</p>
-    </section>
-  `;
-}
-
-function renderProfile() {
-  pageTitle.textContent = 'Perfil';
-  const badge = cachedDashboard?.zivaRank?.badge || 'Explorador Financiero';
-  const alias = 'Usuario BREG';
-  const accountAge = cachedDashboard?.accountAge || '2 meses';
-  const totalIncome = cachedDashboard?.totalIncome || 0;
-  const totalSaved = cachedDashboard?.lifetimeSaved || 0;
-  mainContent.innerHTML = `
-    <section class="card"><h2>${alias}</h2><p class="badge">${badge}</p><p class="message">Cuenta activa desde ${accountAge}</p></section>
-    <section class="card">
-      <div class="stat-card"><strong>$${totalIncome.toFixed(0)}</strong><span>Ingresos totales</span></div>
-      <div class="stat-card" style="margin-top:14px;"><strong>$${totalSaved.toFixed(0)}</strong><span>Ahorros totales</span></div>
-    </section>
-    <section class="card"><h2>QR</h2><p class="message">Alias: breg.usuario</p><div class="badge-pill">QR protegido con PIN</div></section>
-    <section class="card"><h2>Identidad de sistema</h2><p>ZIVA Latam · ZivaTech · ZivaPay · ZivaCredit · ZivaTrust · ZivaOS</p><p class="message">© ZIVA LATAM — BHG Holding Group — All rights reserved</p></section>
-  `;
-}
-
-function showToast(message) {
-  toast.textContent = message;
-  toast.classList.add('visible');
-  setTimeout(() => toast.classList.remove('visible'), 2800);
 }
 
 init();
