@@ -47,4 +47,18 @@ h1{margin:4px 0 0;font-size:1.4rem;}
 .toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);padding:14px 18px;border-radius:18px;background:rgba(15,23,42,0.95);color:#f8fafc;box-shadow:0 22px 45px rgba(15,23,42,0.35);transition:opacity .25s ease,visibility .25s ease;opacity:0;visibility:hidden;z-index:20;}
 .toast.visible{opacity:1;visibility:visible;}
 .hidden{display:none;}
+/* 🔥 Mejora UX offline */
+.status-chip {
+  transition: all 0.3s ease;
+}
+
+.status-chip.offline {
+  background: rgba(239,68,68,0.2);
+  color: #fecaca;
+}
+
+.status-chip.online {
+  background: rgba(34,197,94,0.2);
+  color: #bbf7d0;
+}
 @media (max-width:420px){.topbar{padding:18px 16px;}.content{padding:0 16px 20px;}}
