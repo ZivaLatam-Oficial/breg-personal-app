@@ -98,29 +98,32 @@ async function loadAllData() {
     fetchVaultData()
   ]);
 
-  renderDashboard();
-}
-
-async function fetchDashboardData() {
+  renderDashboard();async function fetchDashboardData() {
   try {
     cachedDashboard = await fetchApi(`/breg/dashboard/${ZID}`);
     saveState(STORAGE_KEYS.cachedDashboard, cachedDashboard);
-  } catch {}
+  } catch (err) {
+    console.error('Dashboard fetch error', err);
+  }
 }
 
 async function fetchHistoryData() {
   try {
     cachedHistory = await fetchApi(`/breg/history/${ZID}`);
     saveState(STORAGE_KEYS.cachedHistory, cachedHistory);
-  } catch {}
+  } catch (err) {
+    console.error('History fetch error', err);
+  }
 }
 
 async function fetchVaultData() {
   try {
     cachedVault = await fetchApi(`/breg/vault/${ZID}`);
     saveState(STORAGE_KEYS.cachedVault, cachedVault);
-  } catch {}
-}
+  } catch (err) {
+    console.error('Vault fetch error', err);
+  }
+                  }
 
 // ================= UI =================
 function renderDashboard() {
