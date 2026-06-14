@@ -1,4 +1,4 @@
-const CACHE_NAME = 'breg-personal-v2';
+const CACHE_NAME = 'breg-personal-shell-v2';
 
 const APP_SHELL = [
   '/',
