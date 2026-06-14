@@ -100,7 +100,7 @@ async function loadAllData() {
 
   renderDashboard();async function fetchDashboardData() {
   try {
-    cachedDashboard = await fetchApi(`/breg/dashboard/${ZID}`);
+    cachedDashboard = await fetchApi(`/breg/dashboard/:zid`);
     saveState(STORAGE_KEYS.cachedDashboard, cachedDashboard);
   } catch (err) {
     console.error('Dashboard fetch error', err);
@@ -109,7 +109,7 @@ async function loadAllData() {
 
 async function fetchHistoryData() {
   try {
-    cachedHistory = await fetchApi(`/breg/history/${ZID}`);
+    cachedHistory = await fetchApi(`/breg/history/:zid`);
     saveState(STORAGE_KEYS.cachedHistory, cachedHistory);
   } catch (err) {
     console.error('History fetch error', err);
@@ -118,7 +118,7 @@ async function fetchHistoryData() {
 
 async function fetchVaultData() {
   try {
-    cachedVault = await fetchApi(`/breg/vault/${ZID}`);
+    cachedVault = await fetchApi(`/breg/vault/:zid`);
     saveState(STORAGE_KEYS.cachedVault, cachedVault);
   } catch (err) {
     console.error('Vault fetch error', err);
