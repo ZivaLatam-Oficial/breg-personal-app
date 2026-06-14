@@ -11,9 +11,11 @@ const APP_SHELL = [
 const API_BASE = 'https://ziva-core-backend-production-fb94.up.railway.app';
 
 self.addEventListener('install', event => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL))
   );
+});
   self.skipWaiting();
 });
 
